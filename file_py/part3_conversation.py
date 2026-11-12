@@ -5,22 +5,20 @@ import random
 
 from gtts import gTTS
 
-from config import (
+from file_py.config import (
     client,
     DELAY_BETWEEN_QUESTION,
 )
 
-from db import (
-    insert_question,
-    get_connection,
-)
+from file_py.db import insert_question
 
 
 # ============================================================
 # CONFIG
 # ============================================================
 
-PART_ID = 4
+PART_ID = 3
+MATERIAL_ID = 35
 
 
 # ============================================================
@@ -33,9 +31,9 @@ BASE_DIR = os.path.dirname(
 
 AUDIO_DIR = os.path.join(
     BASE_DIR,
-    "part4",
+    "part3",
     "audio",
-    "talk",
+    "conversation",
 )
 
 os.makedirs(
@@ -45,62 +43,17 @@ os.makedirs(
 
 
 # ============================================================
-# GET MATERIAL ID PART 4
+# CREATE CONVERSATION AUDIO
 # ============================================================
 
-def get_material_id_part4():
-    connection = None
-    cursor = None
-
-    try:
-        connection = get_connection()
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT id
-            FROM materials
-            WHERE part_id = 4
-            ORDER BY id ASC
-            LIMIT 1
-            """
-        )
-
-        row = cursor.fetchone()
-
-        if not row:
-            raise ValueError(
-                "Tidak ada material untuk Part 4. "
-                "Buat minimal 1 material Part 4 "
-                "pada tabel materials."
-            )
-
-        return row[0]
-
-    finally:
-        if cursor is not None:
-            cursor.close()
-
-        if connection is not None:
-            connection.close()
-
-
-# ============================================================
-# CREATE TALK AUDIO
-# ============================================================
-
-def create_talk_audio(
+def create_conversation_audio(
     text,
     filename,
 ):
     try:
-        filename_with_ext = (
-            f"{filename}.mp3"
-        )
-
         full_path = os.path.join(
             AUDIO_DIR,
-            filename_with_ext,
+            f"{filename}.mp3",
         )
 
         tts = gTTS(
@@ -112,13 +65,13 @@ def create_talk_audio(
 
         # Path yang disimpan ke database
         return (
-            "part4/audio/talk/"
-            f"{filename_with_ext}"
+            "part3/audio/conversation/"
+            f"{filename}.mp3"
         )
 
     except Exception as e:
         print(
-            "Talk audio error:",
+            "Conversation audio error:",
             e,
         )
 
@@ -238,31 +191,31 @@ def validate_question(question):
 
 
 # ============================================================
-# VALIDATE TALK
+# VALIDATE CONVERSATION
 # ============================================================
 
-def validate_talk(talk_data):
+def validate_conversation(conversation):
     if not isinstance(
-        talk_data,
+        conversation,
         dict,
     ):
         return False
 
-    talk = (
-        talk_data.get(
-            "talk",
+    conversation_text = (
+        conversation.get(
+            "conversation",
             "",
         )
     )
 
-    questions = (
-        talk_data.get(
-            "questions",
-            [],
-        )
+    questions = conversation.get(
+        "questions",
+        [],
     )
 
-    if not str(talk).strip():
+    if not str(
+        conversation_text
+    ).strip():
         return False
 
     if not isinstance(
@@ -271,7 +224,8 @@ def validate_talk(talk_data):
     ):
         return False
 
-    # Part 4: satu talk = tepat 3 soal
+    # Kita gunakan tepat 3 soal
+    # untuk setiap conversation.
     if len(questions) != 3:
         return False
 
@@ -285,81 +239,78 @@ def validate_talk(talk_data):
 
 
 # ============================================================
-# GENERATE TALKS
+# GENERATE CONVERSATIONS WITH GEMINI
 # ============================================================
 
 def generate_questions(
     level,
     jumlah,
 ):
-    total_talks = jumlah // 3
+    total_conversations = (
+        jumlah // 3
+    )
 
     prompt = f"""
-Generate TOEIC Part 4 Listening Talks.
+Generate TOEIC Part 3 Conversations.
 
 Difficulty level: {level}
 
-Create exactly {total_talks} talks.
+Create exactly {total_conversations} conversations.
 
 IMPORTANT:
-- Each talk MUST contain exactly 3 questions.
-- Total questions MUST be exactly {jumlah}.
-- A talk is a monologue spoken by ONE speaker.
+- Each conversation MUST contain exactly 3 questions.
+- Therefore the total number of questions MUST be exactly {jumlah}.
 
-TOEIC Part 4 rules:
-- Each talk should contain approximately 5 to 8 sentences.
+TOEIC Part 3 rules:
+- Each conversation is spoken by 2 or 3 people.
+- Each conversation should contain approximately 4 to 8 dialogue lines.
 - Use natural spoken English.
 - Use realistic TOEIC contexts such as:
-  announcements,
-  recorded messages,
-  office updates,
-  advertisements,
-  tourism information,
-  business presentations,
-  company news,
-  event announcements,
-  transportation announcements,
-  weather reports,
-  customer service messages,
-  introductions,
-  instructions.
-- Each question must test comprehension of the talk.
-- Use varied question types such as:
+  office,
+  meetings,
+  business,
+  travel,
+  hotels,
+  restaurants,
+  customer service,
+  appointments,
+  education,
+  stores,
+  transportation,
+  workplace situations.
+- Questions must test comprehension of the conversation.
+- Include different question types such as:
   main purpose,
   speaker intention,
   location,
-  audience,
-  specific detail,
-  reason,
+  problem,
+  suggestion,
   next action,
+  specific detail,
   implied meaning.
-- Each question must have exactly four choices:
-  A, B, C, and D.
-- Only one answer can be correct.
+- Each question must have exactly 4 choices: A, B, C, D.
+- Only one answer may be correct.
 - Distractors must be plausible.
 - Correct answers should vary between A, B, C, and D.
 - Adjust vocabulary and complexity to the {level} level.
 
-LANGUAGE RULES:
-- Talk must be written in English.
-- Questions must be written in English.
-- Options must be written in English.
-- Explanation MUST be written in Bahasa Indonesia.
-- Explanation must explain why the answer is correct
-  based on information in the talk.
-- Do NOT mention option letters A/B/C/D
-  in the explanation.
+IMPORTANT LANGUAGE RULES:
+- Conversation must be in English.
+- Questions must be in English.
+- Options must be in English.
+- Explanation MUST be in Bahasa Indonesia.
+- Explanation must explain why the answer is correct based on the conversation.
+- Do NOT mention option letters A/B/C/D in the explanation.
 
 Return valid JSON only.
 Do NOT return Markdown.
 Do NOT use ```json.
-Do NOT include comments inside JSON.
 
 JSON format:
 
 [
   {{
-    "talk": "",
+    "conversation": "Man: ...\\nWoman: ...",
     "questions": [
       {{
         "question": "",
@@ -393,8 +344,8 @@ JSON format:
 ]
 
 Generate EXACTLY:
-- {total_talks} talks
-- 3 questions per talk
+- {total_conversations} conversations
+- 3 questions per conversation
 - {jumlah} questions total
 """
 
@@ -426,7 +377,6 @@ Generate EXACTLY:
                 .strip()
             )
 
-            # Cari JSON array
             start = text.find("[")
             end = text.rfind("]")
 
@@ -451,33 +401,34 @@ Generate EXACTLY:
 
             if len(data) == 0:
                 raise ValueError(
-                    "Gemini tidak menghasilkan talk"
+                    "Gemini tidak menghasilkan conversation"
                 )
 
-            # Batasi sesuai jumlah talk
-            data = data[:total_talks]
+            # Ambil sesuai jumlah conversation
+            data = data[
+                :total_conversations
+            ]
 
             valid_data = []
 
-            for talk_data in data:
-                if validate_talk(
-                    talk_data
+            for conversation in data:
+                if validate_conversation(
+                    conversation
                 ):
                     valid_data.append(
-                        talk_data
+                        conversation
                     )
-
                 else:
                     print(
-                        "Talk tidak valid "
-                        "dan dilewati."
+                        "Conversation tidak valid "
+                        "dan akan dilewati."
                     )
 
             if valid_data:
                 return valid_data
 
             raise ValueError(
-                "Tidak ada talk valid"
+                "Tidak ada conversation valid"
             )
 
         except Exception as e:
@@ -488,23 +439,18 @@ Generate EXACTLY:
             )
 
             if attempt < 4:
-                print(
-                    "Retrying..."
-                )
-
                 time.sleep(5)
 
     return None
 
 
 # ============================================================
-# SAVE QUESTIONS
+# SAVE CONVERSATIONS
 # ============================================================
 
 def save_questions(
     level,
     data,
-    material_id,
     max_questions,
 ):
     batch_id = (
@@ -513,29 +459,34 @@ def save_questions(
     )
 
     saved_count = 0
-    talk_number = 1
+    conversation_number = 1
 
-    for talk_data in data:
+    for conversation_data in data:
         if saved_count >= max_questions:
             break
 
-        if not validate_talk(
-            talk_data
+        if not validate_conversation(
+            conversation_data
         ):
             print(
-                "Invalid talk skipped"
+                "Invalid conversation skipped"
             )
             continue
 
-        talk_text = (
-            talk_data["talk"]
+        conversation = (
+            conversation_data[
+                "conversation"
+            ]
         )
 
         questions = (
-            talk_data["questions"]
+            conversation_data[
+                "questions"
+            ]
         )
 
-        # Jangan simpan talk parsial.
+        # Jangan simpan conversation parsial.
+        # Harus tersedia ruang untuk 3 soal.
         if (
             saved_count + 3
             > max_questions
@@ -550,42 +501,43 @@ def save_questions(
             start_number + 2
         )
 
-        talk_filename = (
+        conv_filename = (
             f"{level}_"
             f"{batch_id}_"
-            f"talk_"
-            f"{talk_number}_"
+            f"conv_"
+            f"{conversation_number}_"
             f"{start_number}-"
             f"{end_number}"
         )
 
         print(
-            f"\nCreating talk audio: "
-            f"{talk_filename}"
+            f"\nCreating conversation audio: "
+            f"{conv_filename}"
         )
 
-        talk_audio = (
-            create_talk_audio(
-                talk_text,
-                talk_filename,
+        conversation_audio = (
+            create_conversation_audio(
+                conversation,
+                conv_filename,
             )
         )
 
-        if not talk_audio:
+        if not conversation_audio:
             print(
-                "Audio talk gagal dibuat. "
-                "Talk dilewati."
+                "Audio conversation gagal dibuat. "
+                "Conversation dilewati."
             )
             continue
 
         time.sleep(1)
 
-        # ====================================================
-        # PREPARE QUESTIONS
-        # ====================================================
+        # ================================================
+        # Siapkan seluruh soal dahulu
+        # ================================================
 
         prepared_questions = []
-        talk_valid = True
+
+        conversation_valid = True
 
         for question in questions:
             try:
@@ -598,7 +550,7 @@ def save_questions(
                 if not validate_question(
                     question
                 ):
-                    talk_valid = False
+                    conversation_valid = False
                     break
 
                 prepared_questions.append(
@@ -611,41 +563,41 @@ def save_questions(
                     e,
                 )
 
-                talk_valid = False
+                conversation_valid = False
                 break
 
-        # Jika salah satu soal invalid,
-        # jangan simpan talk parsial.
+        # Jika salah satu soal rusak,
+        # jangan simpan group parsial.
         if (
-            not talk_valid
+            not conversation_valid
             or len(prepared_questions) != 3
         ):
             print(
-                "Talk memiliki soal tidak valid. "
-                "Group dilewati."
+                "Conversation memiliki soal "
+                "tidak valid. Group dilewati."
             )
 
-            # Hapus audio yang tidak dipakai
-            full_audio_path = os.path.join(
+            # Hapus audio yang tidak digunakan
+            audio_full_path = os.path.join(
                 BASE_DIR,
-                talk_audio,
+                conversation_audio,
             )
 
             if os.path.exists(
-                full_audio_path
+                audio_full_path
             ):
                 try:
                     os.remove(
-                        full_audio_path
+                        audio_full_path
                     )
                 except Exception:
                     pass
 
             continue
 
-        # ====================================================
-        # SAVE 3 QUESTIONS
-        # ====================================================
+        # ================================================
+        # SIMPAN 3 SOAL
+        # ================================================
 
         group_saved = 0
 
@@ -663,9 +615,7 @@ def save_questions(
             try:
                 insert_question(
                     part_id=PART_ID,
-
-                    material_id=material_id,
-
+                    material_id=MATERIAL_ID,
                     difficulty_level=level,
 
                     question_text=(
@@ -698,9 +648,11 @@ def save_questions(
 
                     image_file=None,
 
-                    # Semua soal dalam talk
-                    # menggunakan audio yang sama
-                    audio_file=talk_audio,
+                    # Ketiga soal memakai
+                    # audio_file yang sama.
+                    audio_file=(
+                        conversation_audio
+                    ),
                 )
 
                 saved_count += 1
@@ -724,7 +676,7 @@ def save_questions(
                 )
 
         if group_saved == 3:
-            talk_number += 1
+            conversation_number += 1
 
     return saved_count
 
@@ -768,57 +720,44 @@ def run(
 
     if jumlah < 3:
         raise ValueError(
-            "Part 4 minimal menghasilkan "
-            "3 soal"
+            "Part 3 minimal menghasilkan 3 soal"
         )
 
     # ========================================================
-    # HARUS KELIPATAN 3
+    # PART 3 HARUS KELIPATAN 3
     # ========================================================
 
     if jumlah % 3 != 0:
         raise ValueError(
-            "Jumlah soal Part 4 harus "
+            "Jumlah soal Part 3 harus "
             "kelipatan 3, misalnya "
             "3, 6, 9, 12, dan seterusnya"
         )
 
     if jumlah > 48:
         raise ValueError(
-            "Jumlah soal Part 4 maksimal "
-            "48 dalam satu proses"
+            "Jumlah soal Part 3 maksimal 48 "
+            "dalam satu proses"
         )
-
-    # ========================================================
-    # MATERIAL ID
-    # ========================================================
-
-    material_id = (
-        get_material_id_part4()
-    )
 
     print(
         "\n================================"
     )
 
     print(
-        "START GENERATE TOEIC PART 4"
+        "START GENERATE TOEIC PART 3"
     )
 
     print(
-        f"Level       : {level}"
+        f"Level        : {level}"
     )
 
     print(
-        f"Jumlah soal : {jumlah}"
+        f"Jumlah soal  : {jumlah}"
     )
 
     print(
-        f"Jumlah talk : {jumlah // 3}"
-    )
-
-    print(
-        f"Material ID : {material_id}"
+        f"Conversation : {jumlah // 3}"
     )
 
     print(
@@ -837,6 +776,9 @@ def run(
             jumlah - total_saved
         )
 
+        # Karena setiap conversation harus
+        # 3 soal, remaining juga harus
+        # kelipatan 3.
         if remaining < 3:
             break
 
@@ -863,7 +805,6 @@ def run(
         saved = save_questions(
             level=level,
             data=data,
-            material_id=material_id,
             max_questions=remaining,
         )
 
@@ -876,6 +817,8 @@ def run(
             )
             break
 
+        # Pastikan hasil yang tersimpan
+        # tetap berupa group lengkap.
         if total_saved % 3 != 0:
             print(
                 "WARNING: jumlah soal tersimpan "
@@ -887,8 +830,8 @@ def run(
 
         if generation_round > 5:
             print(
-                "Batas percobaan generate "
-                "tercapai."
+                "Batas percobaan "
+                "generate tercapai."
             )
             break
 

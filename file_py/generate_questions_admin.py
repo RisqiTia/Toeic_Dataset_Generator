@@ -131,7 +131,7 @@ try:
 
     if part == 1:
 
-        from part1_photograph import run
+        from file_py.part1_photograph import run
 
         total_generated = run(
             level=level,
@@ -141,7 +141,7 @@ try:
 
     elif part == 2:
 
-        from part2_question_response import run
+        from file_py.part2_question_response import run
 
         total_generated = run(
             level=level,
@@ -151,7 +151,7 @@ try:
 
     elif part == 3:
 
-        from part3_conversation import run
+        from file_py.part3_conversation import run
 
         total_generated = run(
             level=level,
@@ -160,7 +160,7 @@ try:
 
     elif part == 4:
 
-        from part4_talks import run
+        from file_py.part4_talks import run
 
         total_generated = run(
             level=level,
@@ -169,7 +169,7 @@ try:
 
     elif part == 5:
 
-        from part5_incomplete_sentences import run
+        from file_py.part5_incomplete_sentences import run
 
         total_generated = run(
             level=level,
@@ -178,7 +178,7 @@ try:
 
     elif part == 6:
 
-        from part6_text_completion import run
+        from file_py.part6_text_completion import run
 
         total_generated = run(
             level=level,
@@ -187,7 +187,7 @@ try:
 
     elif part == 7:
 
-        from part7_reading_comprehension import run
+        from file_py.part7_reading_comprehension import run
 
         total_generated = run(
             level=level,

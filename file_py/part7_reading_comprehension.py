@@ -3,12 +3,12 @@ import time
 import random
 import re
 
-from config import (
+from file_py.config import (
     client,
     DELAY_BETWEEN_QUESTION,
 )
 
-from db import (
+from file_py.db import (
     insert_question,
     get_connection,
 )

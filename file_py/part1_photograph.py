@@ -2,18 +2,20 @@ import os
 import json
 import time
 import random
+import requests
 
 from gtts import gTTS
 
-from config import (
+from file_py.config import (
     client,
+    PEXELS_API_KEY,
     DELAY_BETWEEN_QUESTION,
 )
 
-from db import (
-    insert_question,
-    get_connection,
-)
+from file_py.db import insert_question
+
+
+PEXELS_URL = "https://api.pexels.com/v1/search"
 
 
 # ============================================================
@@ -24,11 +26,26 @@ BASE_DIR = os.path.dirname(
     os.path.abspath(__file__)
 )
 
+IMAGE_DIR = os.path.join(
+    BASE_DIR,
+    "part1",
+    "images",
+)
+
 AUDIO_DIR = os.path.join(
     BASE_DIR,
-    "part2",
+    "part1",
     "audio",
-    "question",
+)
+
+
+# ============================================================
+# CREATE FOLDER
+# ============================================================
+
+os.makedirs(
+    IMAGE_DIR,
+    exist_ok=True,
 )
 
 os.makedirs(
@@ -38,8 +55,140 @@ os.makedirs(
 
 
 # ============================================================
+# DOWNLOAD IMAGE
+# ============================================================
+
+def download_image(keyword, filename):
+    try:
+        headers = {
+            "Authorization": PEXELS_API_KEY
+        }
+
+        params = {
+            "query": keyword,
+            "per_page": 1,
+        }
+
+        response = requests.get(
+            PEXELS_URL,
+            headers=headers,
+            params=params,
+            timeout=30,
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        if not data.get("photos"):
+            print(
+                f"Image tidak ditemukan: {keyword}"
+            )
+            return None
+
+        img_url = (
+            data["photos"][0]["src"]["large"]
+        )
+
+        img_response = requests.get(
+            img_url,
+            timeout=30,
+        )
+
+        img_response.raise_for_status()
+
+        filename_with_ext = (
+            f"{filename}.jpg"
+        )
+
+        full_path = os.path.join(
+            IMAGE_DIR,
+            filename_with_ext,
+        )
+
+        with open(
+            full_path,
+            "wb",
+        ) as file:
+            file.write(
+                img_response.content
+            )
+
+        # Path yang disimpan ke database.
+        # Tetap kompatibel dengan struktur generator lama.
+        database_path = (
+            f"part1/images/"
+            f"{filename_with_ext}"
+        )
+
+        return database_path
+
+    except Exception as e:
+        print(
+            "Image download error:",
+            e,
+        )
+
+        return None
+
+
+# ============================================================
+# CREATE AUDIO
+# ============================================================
+
+def create_audio(
+    question,
+    a,
+    b,
+    c,
+    d,
+    filename,
+):
+    try:
+        audio_text = f"""
+{question}
+
+A. {a}
+B. {b}
+C. {c}
+D. {d}
+"""
+
+        tts = gTTS(
+            text=audio_text,
+            lang="en",
+        )
+
+        filename_with_ext = (
+            f"{filename}.mp3"
+        )
+
+        full_path = os.path.join(
+            AUDIO_DIR,
+            filename_with_ext,
+        )
+
+        tts.save(full_path)
+
+        # Path yang disimpan ke database.
+        database_path = (
+            f"part1/audio/"
+            f"{filename_with_ext}"
+        )
+
+        return database_path
+
+    except Exception as e:
+        print(
+            "Audio error:",
+            e,
+        )
+
+        return None
+
+
+# ============================================================
 # SHUFFLE OPTIONS
-# Part 2 hanya memiliki 3 pilihan: A, B, C
 # ============================================================
 
 def shuffle_options(question):
@@ -56,10 +205,14 @@ def shuffle_options(question):
             "C",
             question["option_c"],
         ),
+        (
+            "D",
+            question["option_d"],
+        ),
     ]
 
     original_answer = (
-        str(question["answer"])
+        question["answer"]
         .strip()
         .upper()
     )
@@ -68,9 +221,10 @@ def shuffle_options(question):
         "A",
         "B",
         "C",
+        "D",
     ]:
         raise ValueError(
-            "Jawaban Part 2 harus A, B, atau C"
+            "Jawaban dari Gemini tidak valid"
         )
 
     correct_text = dict(
@@ -83,6 +237,7 @@ def shuffle_options(question):
         "A",
         "B",
         "C",
+        "D",
     ]
 
     new_options = {}
@@ -110,119 +265,25 @@ def shuffle_options(question):
         new_options["C"]
     )
 
-    question["option_d"] = ""
+    question["option_d"] = (
+        new_options["D"]
+    )
 
     question["answer"] = (
         new_answer
+    )
+
+    # Gambar dicari berdasarkan
+    # deskripsi jawaban yang benar.
+    question["image_keyword"] = (
+        correct_text
     )
 
     return question
 
 
 # ============================================================
-# CREATE AUDIO
-# ============================================================
-
-def create_audio(
-    question,
-    option_a,
-    option_b,
-    option_c,
-    filename,
-):
-    try:
-        audio_text = f"""
-{question}
-
-A. {option_a}
-B. {option_b}
-C. {option_c}
-"""
-
-        filename_with_ext = (
-            f"{filename}.mp3"
-        )
-
-        full_path = os.path.join(
-            AUDIO_DIR,
-            filename_with_ext,
-        )
-
-        tts = gTTS(
-            text=audio_text,
-            lang="en",
-        )
-
-        tts.save(
-            full_path
-        )
-
-        # Path yang disimpan ke database.
-        return (
-            "part2/audio/question/"
-            f"{filename_with_ext}"
-        )
-
-    except Exception as e:
-        print(
-            "Audio error:",
-            e,
-        )
-
-        return None
-
-
-# ============================================================
-# VALIDASI QUESTION
-# ============================================================
-
-def validate_question(question):
-    required_fields = [
-        "question",
-        "option_a",
-        "option_b",
-        "option_c",
-        "answer",
-        "explanation",
-    ]
-
-    for field in required_fields:
-
-        if field not in question:
-            print(
-                f"Field {field} tidak ditemukan"
-            )
-            return False
-
-        value = question[field]
-
-        if value is None:
-            return False
-
-        if (
-            isinstance(value, str)
-            and not value.strip()
-        ):
-            return False
-
-    answer = (
-        str(question["answer"])
-        .strip()
-        .upper()
-    )
-
-    if answer not in [
-        "A",
-        "B",
-        "C",
-    ]:
-        return False
-
-    return True
-
-
-# ============================================================
-# GENERATE QUESTIONS VIA GEMINI
+# GENERATE QUESTIONS WITH GEMINI
 # ============================================================
 
 def generate_questions(
@@ -230,36 +291,30 @@ def generate_questions(
     jumlah,
 ):
     prompt = f"""
-Generate exactly {jumlah} TOEIC Part 2 Question-Response questions.
+Generate exactly {jumlah} TOEIC Part 1 Photograph questions.
 
 Difficulty level: {level}
 
-TOEIC Part 2 rules:
-- Each item consists of one spoken question or statement.
-- Each item must have exactly 3 possible responses: A, B, and C.
-- There is NO option D.
-- Only one response is the most appropriate.
-- Distractors must sound plausible but must not correctly respond to the question or statement.
-- Use natural spoken English.
-- Use realistic TOEIC workplace and everyday contexts.
-- Include varied question types such as:
-  Who, What, When, Where, Why, How,
-  Yes/No questions,
-  requests,
-  suggestions,
-  offers,
-  and statements.
+TOEIC Part 1 rules:
+- Each item represents one photograph.
+- Each item must have exactly 4 options: A, B, C, and D.
+- Only one option may correctly describe the photograph.
+- The other three options must be plausible but clearly incorrect.
+- Use realistic TOEIC situations such as offices, streets, restaurants,
+  airports, stations, stores, meetings, workplaces, and public places.
+- Sentences must sound natural in English.
 - Adjust vocabulary and sentence complexity to the {level} level.
-- Correct answers must vary between A, B, and C.
+- Correct answers must vary between A, B, C, and D.
 
 IMPORTANT:
-- question must be written in English.
-- option_a, option_b, and option_c must be written in English.
-- option_d must always be an empty string.
+- "question" may contain a short instruction appropriate for TOEIC Part 1.
 - explanation MUST be written in Bahasa Indonesia.
-- Explanation must clearly explain why the correct response is appropriate.
-- Do NOT mention the answer letter A, B, or C in the explanation.
-- Do NOT write comments inside JSON.
+- Do NOT mention the answer letter A/B/C/D inside explanation.
+- Explanation must explain why the description matches the photograph.
+- image_keyword must be a concise English search phrase that clearly
+  represents the CORRECT option.
+- image_keyword should describe visible people, objects, actions,
+  and setting.
 - Return valid JSON only.
 - Do not return Markdown.
 - Do not use ```json.
@@ -275,13 +330,13 @@ JSON format:
     "option_c": "",
     "option_d": "",
     "answer": "A",
-    "explanation": ""
+    "explanation": "",
+    "image_keyword": ""
   }}
 ]
 """
 
     for attempt in range(5):
-
         try:
             print(
                 f"Gemini attempt "
@@ -309,7 +364,7 @@ JSON format:
                 .strip()
             )
 
-            # Ambil JSON array saja.
+            # Cari array JSON.
             start = text.find("[")
             end = text.rfind("]")
 
@@ -322,9 +377,7 @@ JSON format:
                 start:end + 1
             ]
 
-            data = json.loads(
-                text
-            )
+            data = json.loads(text)
 
             if not isinstance(
                 data,
@@ -339,12 +392,13 @@ JSON format:
                     "Gemini tidak menghasilkan soal"
                 )
 
-            # Jika Gemini menghasilkan lebih banyak,
-            # batasi sesuai permintaan.
-            return data[:jumlah]
+            # Jika Gemini menghasilkan lebih banyak
+            # dari yang diminta, ambil sesuai jumlah.
+            data = data[:jumlah]
+
+            return data
 
         except Exception as e:
-
             print(
                 f"LLM error attempt "
                 f"{attempt + 1}:",
@@ -358,50 +412,52 @@ JSON format:
 
 
 # ============================================================
-# GET MATERIAL ID PART 2
+# VALIDASI SATU SOAL
 # ============================================================
 
-def get_material_id_part2():
-    connection = None
-    cursor = None
+def validate_question(question):
+    required_fields = [
+        "question",
+        "option_a",
+        "option_b",
+        "option_c",
+        "option_d",
+        "answer",
+        "explanation",
+    ]
 
-    try:
-        connection = (
-            get_connection()
-        )
+    for field in required_fields:
+        if field not in question:
+            return False
 
-        cursor = (
-            connection.cursor()
-        )
+        if question[field] is None:
+            return False
 
-        cursor.execute(
-            """
-            SELECT id
-            FROM materials
-            WHERE part_id = 2
-            ORDER BY id ASC
-            LIMIT 1
-            """
-        )
-
-        row = cursor.fetchone()
-
-        if not row:
-            raise ValueError(
-                "Tidak ada material untuk Part 2. "
-                "Buat minimal 1 material Part 2 "
-                "pada tabel materials."
+        if (
+            isinstance(
+                question[field],
+                str,
             )
+            and
+            not question[field].strip()
+        ):
+            return False
 
-        return row[0]
+    answer = (
+        str(question["answer"])
+        .strip()
+        .upper()
+    )
 
-    finally:
+    if answer not in [
+        "A",
+        "B",
+        "C",
+        "D",
+    ]:
+        return False
 
-        if cursor is not None:
-            cursor.close()
-
-        if connection is not None:
-            connection.close()
+    return True
 
 
 # ============================================================
@@ -411,9 +467,10 @@ def get_material_id_part2():
 def save_questions(
     level,
     questions,
-    material_id,
     max_questions,
 ):
+    # timestamp + random untuk mengurangi
+    # kemungkinan nama file sama.
     batch_id = (
         f"{int(time.time())}_"
         f"{random.randint(1000, 9999)}"
@@ -424,7 +481,8 @@ def save_questions(
     for index, question in enumerate(
         questions
     ):
-
+        # Jangan simpan melebihi jumlah
+        # yang diminta admin.
         if saved_count >= max_questions:
             break
 
@@ -435,11 +493,6 @@ def save_questions(
         )
 
         try:
-
-            # --------------------------------------------
-            # VALIDASI
-            # --------------------------------------------
-
             if not validate_question(
                 question
             ):
@@ -449,55 +502,11 @@ def save_questions(
                 )
                 continue
 
-            # --------------------------------------------
-            # SHUFFLE
-            # --------------------------------------------
-
             question = (
                 shuffle_options(
                     question
                 )
             )
-
-            # --------------------------------------------
-            # EXPLANATION
-            # --------------------------------------------
-
-            explanation = (
-                str(
-                    question.get(
-                        "explanation",
-                        "",
-                    )
-                )
-                .strip()
-            )
-
-            if not explanation:
-
-                correct_letter = (
-                    question["answer"]
-                    .lower()
-                )
-
-                correct_text = (
-                    question[
-                        f"option_{correct_letter}"
-                    ]
-                )
-
-                explanation = (
-                    "Respons tersebut paling sesuai "
-                    "dengan konteks pertanyaan, yaitu "
-                    f"\"{correct_text}\". Respons ini "
-                    "memberikan jawaban yang relevan "
-                    "dan logis terhadap pertanyaan "
-                    "yang diberikan."
-                )
-
-            # --------------------------------------------
-            # FILENAME
-            # --------------------------------------------
 
             filename = (
                 f"{level}_"
@@ -505,9 +514,37 @@ def save_questions(
                 f"{index + 1}"
             )
 
-            # --------------------------------------------
+            keyword = (
+                question.get(
+                    "image_keyword",
+                    "",
+                )
+                or
+                question[
+                    "option_a"
+                ]
+            )
+
+            # --------------------------------
+            # IMAGE
+            # --------------------------------
+
+            print(
+                "Downloading image..."
+            )
+
+            image_path = (
+                download_image(
+                    keyword,
+                    filename,
+                )
+            )
+
+            time.sleep(1)
+
+            # --------------------------------
             # AUDIO
-            # --------------------------------------------
+            # --------------------------------
 
             print(
                 "Creating audio..."
@@ -519,18 +556,23 @@ def save_questions(
                     question["option_a"],
                     question["option_b"],
                     question["option_c"],
+                    question["option_d"],
                     filename,
                 )
             )
 
-            # --------------------------------------------
+            time.sleep(1)
+
+            # --------------------------------
             # DATABASE
-            # --------------------------------------------
+            # --------------------------------
 
             insert_question(
-                part_id=2,
+                part_id=1,
 
-                material_id=material_id,
+                # Tetap menggunakan material
+                # yang sekarang dipakai generator.
+                material_id=33,
 
                 difficulty_level=level,
 
@@ -550,16 +592,19 @@ def save_questions(
                     question["option_c"]
                 ),
 
-                option_d="",
+                option_d=(
+                    question["option_d"]
+                ),
 
                 correct_answer=(
                     question["answer"]
                 ),
 
-                explanation=explanation,
+                explanation=(
+                    question["explanation"]
+                ),
 
-                image_file=None,
-
+                image_file=image_path,
                 audio_file=audio_path,
             )
 
@@ -568,18 +613,19 @@ def save_questions(
             print(
                 f"Saved to database "
                 f"({saved_count}/"
-                f"{max_questions}) ✔"
+                f"{max_questions})"
             )
 
         except Exception as e:
-
             print(
                 "Question processing error:",
                 e,
             )
 
-        if saved_count < max_questions:
-
+        if (
+            saved_count
+            < max_questions
+        ):
             time.sleep(
                 DELAY_BETWEEN_QUESTION
             )
@@ -602,14 +648,8 @@ def run(
     )
 
     try:
-        jumlah = int(
-            jumlah
-        )
-
-    except (
-        TypeError,
-        ValueError,
-    ):
+        jumlah = int(jumlah)
+    except (TypeError, ValueError):
         raise ValueError(
             "Jumlah soal tidak valid"
         )
@@ -621,50 +661,35 @@ def run(
     ]
 
     if level not in allowed_levels:
-
         raise ValueError(
             "Level harus beginner, "
             "intermediate, atau advanced"
         )
 
     if jumlah < 1:
-
         raise ValueError(
             "Jumlah soal minimal 1"
         )
 
     if jumlah > 50:
-
         raise ValueError(
             "Jumlah soal maksimal 50"
         )
-
-    # ========================================================
-    # MATERIAL
-    # ========================================================
-
-    material_id = (
-        get_material_id_part2()
-    )
 
     print(
         "\n================================"
     )
 
     print(
-        "START GENERATE TOEIC PART 2"
+        "START GENERATE TOEIC PART 1"
     )
 
     print(
-        f"Level       : {level}"
+        f"Level  : {level}"
     )
 
     print(
-        f"Jumlah      : {jumlah}"
-    )
-
-    print(
-        f"Material ID : {material_id}"
+        f"Jumlah : {jumlah}"
     )
 
     print(
@@ -672,15 +697,12 @@ def run(
     )
 
     total_saved = 0
-
     generation_round = 1
 
-    # ========================================================
-    # GENERATE SAMPAI JUMLAH TERPENUHI
-    # ========================================================
-
+    # Jika Gemini menghasilkan kurang dari
+    # jumlah yang diminta atau ada soal gagal
+    # disimpan, generate kekurangannya lagi.
     while total_saved < jumlah:
-
         remaining = (
             jumlah - total_saved
         )
@@ -702,41 +724,34 @@ def run(
         )
 
         if not questions:
-
             print(
                 "Generation failed"
             )
-
             break
 
         saved = save_questions(
             level=level,
             questions=questions,
-            material_id=material_id,
             max_questions=remaining,
         )
 
         total_saved += saved
 
         if saved == 0:
-
             print(
                 "Tidak ada soal yang "
                 "berhasil disimpan."
             )
-
             break
 
         generation_round += 1
 
-        # Mencegah loop tanpa batas.
+        # Hindari loop tanpa batas.
         if generation_round > 5:
-
             print(
                 "Batas percobaan "
                 "generate tercapai."
             )
-
             break
 
     print(
@@ -756,11 +771,12 @@ def run(
 
 
 # ============================================================
-# MANUAL TEST
+# MANUAL RUN
 # ============================================================
 
 if __name__ == "__main__":
-
+    # Hanya untuk testing langsung file ini.
+    # Dashboard tidak menggunakan bagian ini.
     run(
         level="beginner",
         jumlah=1,

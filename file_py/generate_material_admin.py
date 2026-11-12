@@ -4,8 +4,8 @@ import time
 import requests
 from gtts import gTTS
 
-from config import client, PEXELS_API_KEY
-from db import insert_material
+from file_py.config import client, PEXELS_API_KEY
+from file_py.db import insert_material
 
 
 PEXELS_URL = "https://api.pexels.com/v1/search"

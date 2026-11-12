@@ -5,9 +5,10 @@ def get_connection():
 
     return mysql.connector.connect(
         host="localhost",
-        user="root",
-        password="",
-        database="toeic_prep_db1"
+        user="toeicpre_toeicta",
+        password="Toeic12345*",
+        database="toeicpre_toeic_prep_db1",
+        charset="utf8mb4"
     )
 
 
@@ -26,6 +27,7 @@ def insert_material(part_id, title, image=None, audio=None, text=None):
 
     material_id = cursor.lastrowid
 
+    cursor.close()
     conn.close()
 
     return material_id
@@ -85,4 +87,5 @@ def insert_question(
 
     conn.commit()
 
+    cursor.close()
     conn.close()
