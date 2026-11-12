@@ -95,6 +95,37 @@ def create_audio(text, filename):
         print("Audio error:", e)
         return None
 
+def upload_asset(file_path, folder):
+
+        url = "https://toeic-prep.my.id/api/upload_asset.php"
+
+        with open(file_path, "rb") as f:
+
+            response = requests.post(
+
+                url,
+
+                files={
+                    "file": f
+                },
+
+                data={
+                    "folder": folder
+                },
+
+                timeout=60
+
+            )
+
+        print(response.text)
+
+        result = response.json()
+
+        if result["status"] != "success":
+
+            raise Exception(result["message"])
+
+        return result["path"]
 
 # ============================================================
 # FIX JSON
@@ -728,9 +759,7 @@ def run(part):
     # DATABASE
     # ========================================================
 
-    print(
-        "Saving material to database..."
-    )
+    print("Saving material to database...")
 
     try:
 
@@ -753,6 +782,66 @@ def run(part):
         )
 
         return False
+
+    print("Uploading image to hosting...")
+
+    hosting_image = None
+
+    if image_path:
+
+        hosting_image = upload_asset(
+            image_path,
+            "images"
+        )
+
+
+    print("Uploading audio to hosting...")
+
+    hosting_audio = None
+
+    if audio_path:
+
+        hosting_audio = upload_asset(
+            audio_path,
+            "audio"
+        )
+
+    try:
+
+        print("Uploading material info to hosting...")
+
+        response = requests.post(
+
+            "https://toeic-prep.my.id/api/upload_material.php",
+
+            json={
+
+                "part_id": part,
+
+                "title": data.get(
+                    "title",
+                    f"TOEIC Part {part}"
+                ),
+
+                "image_file": hosting_image,
+
+                "audio_file": hosting_audio,
+
+                "text_content": material_text
+
+            },
+
+            timeout=60
+
+        )
+
+        print("Hosting response:")
+        print(response.text)
+
+    except Exception as e:
+
+        print("Upload hosting gagal:")
+        print(e)
 
     print(
         "\n================================"
@@ -834,3 +923,4 @@ if __name__ == "__main__":
             )
 
             raise SystemExit(1)
+
