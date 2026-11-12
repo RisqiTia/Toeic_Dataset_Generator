@@ -3,8 +3,8 @@
 // CONFIG
 // ============================================================
 
-define('GEMINI_API_KEY', 'AIzaSyA9csWjbLtWlFYB017K7pS36FqQj7I4X-g'); // API
-define('PEXELS_API_KEY', 'gHXNyUNJy7RxX1kVOLlPXtPjbV5I3WJTjmXMWMOcpfyWCO9RhlQQCNRg');
+define('GEMINI_API_KEY', ''); // API
+define('PEXELS_API_KEY', ''); //API Pexel
 
 define('GEMINI_MODEL', 'gemini-2.5-flash');
 define('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/models/' . GEMINI_MODEL . ':generateContent?key=' . GEMINI_API_KEY);
