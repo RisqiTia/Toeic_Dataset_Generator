@@ -3,6 +3,7 @@ import mysql.connector
 
 def get_connection():
 
+<<<<<<< HEAD:file_py/db.py
     return mysql.connector.connect(
         host="localhost",
         user="toeicpre_toeicta",
@@ -10,7 +11,21 @@ def get_connection():
         database="toeicpre_toeic_prep_db1",
         charset="utf8mb4"
     )
+=======
+    # return mysql.connector.connect(
+    #     host="localhost",
+    #     user="toeicpre_toeicta",
+    #     password="Toeic12345*",
+    #     database="toeicpre_toeic_prep_db1"
+    # )
+>>>>>>> 7be23930badc03bd1963c949acf25bace201a7ba:db.py
 
+    return mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="",
+            database="toeic_prep_db2"
+        )
 
 def insert_material(part_id, title, image=None, audio=None, text=None):
 

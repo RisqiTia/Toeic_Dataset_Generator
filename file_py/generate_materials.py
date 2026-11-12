@@ -3,6 +3,7 @@ import json
 import time
 import requests
 from gtts import gTTS
+from upload_asset import upload_file
 
 from file_py.config import client, PEXELS_API_KEY
 from file_py.db import insert_material
@@ -35,7 +36,11 @@ def download_image(query, filename):
         with open(path, "wb") as f:
             f.write(img)
 
-        return path
+        hosting_path = upload_file(
+            path,
+            "materials/images")
+
+        return hosting_path
     except:
         return None
 
@@ -44,7 +49,12 @@ def create_audio(text, filename):
     try:
         path = f"materials/audio/{filename}.mp3"
         gTTS(text=str(text), lang="en").save(path)
-        return path
+        
+        hosting_path = upload_file(
+            path,
+            "materials/audio"
+        )
+        return hosting_path
     except:
         return None
 
